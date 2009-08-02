@@ -1,0 +1,479 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+	"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<meta http-equiv="Content-type" content="text/html; charset=UTF-8">
+<title>Go-Uhr</title>
+
+<style type="text/css">
+
+p, label, input, div, h2, td, th, li {
+	font-family: "Arial", "Helvetica", sans-serif;
+	font-size: 13px;
+}
+h2 {
+	font-size: 150%;
+}
+
+pre {
+	font-family: "Courier New", "Courier", monospace;
+	font-size: 13px;
+}
+
+.clear_both {
+	clear: both;
+}
+#settings {
+	float: left;
+}
+.settings {
+	border: 1px solid #ccf;
+	padding: 5px;
+	margin: 10px 0px 0px 0px;
+	clear: both;
+}
+.settings .hidden {
+	display: none;
+}
+.settings .active {
+	display: block;
+}
+.settings .title {
+	font-weight: bold;
+	background-color: #eef;
+	padding: 5px 5px 3px 5px;
+	border-bottom: 1px solid #ddf;
+	margin-bottom: 4px;
+}
+.setting {
+	clear: left;
+}
+.setting label {
+	clear: left;
+	cursor: pointer;
+	display: block;
+	float: left;
+	width: 120px;
+	margin: 5px;
+	padding: 2px;
+}
+.settings .settings .setting label {
+	width: 115px;
+}
+.setting input,
+.setting select {
+	border: 1px solid #ccf;
+	padding: 2px;
+	margin: 5px;
+}
+.setting input.time,
+.setting input.number {
+	width: 50px;
+	text-align: right;
+}
+.setting input.text {
+	width: 100px;
+	text-align: left;
+}
+.setting input.check {
+	margin-top: 8px;
+}
+.setting select {
+	min-width: 75px;
+	max-width: 150px;
+}
+
+.buttonbar {
+	text-align: right;
+}
+.button {
+	margin: 5px 0px 5px 0px;
+	padding: 2px;
+}
+.clock {
+	margin: 10px;
+}
+.clock .hidden {
+	display: none;
+}
+.clock div,
+.clock input,
+.clock span {
+	font-size: 13px;
+}
+
+.error {
+	color: #ff0000;
+}
+
+#soundcontainer {
+	position: absolute;
+	top: 0px;
+	left: 0px;
+}
+
+#soundcontainer embed {
+	width: 1px;
+	height: 1px;
+}
+</style>
+
+<script type="text/javascript" src="jquery-1.3.2.min.js"></script>
+<script type="text/javascript" src="goclock.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+	$('#system').bind('change', function() {
+		var selected = $(this).val();
+		$('div[id^=system].settings').each(function(i) {
+			$(this).toggleClass("active", $(this).attr("id") == selected);
+		});
+	});
+	$('#canadian_progressive').bind('click', function() {
+		$('#canadian_moves').toggleClass("number").toggleClass("text").focus();
+	});
+});
+
+$(document).ready(function() {
+	var clock;
+
+	function handleEvents(clock, event) {
+		console.log(arguments);
+	}
+
+	function applySettings() {
+		var timeSystem;
+		var nplayers = Number($('#nplayers').val());
+		var sys = $('#system').val();
+		if (sys == 'system_suddendeath') {
+			timeSystem = new GoClock.SuddenDeath($('#suddendeath_time').val());
+		} else if (sys == 'system_hourglass') {
+			timeSystem = new GoClock.HourGlass($('#hourglass_time').val());
+		} else if (sys == 'system_fischer') {
+			timeSystem = new GoClock.Fischer($('#fischer_time').val(), $('#fischer_timepermove').val());
+		} else if (sys == 'system_cappedfischer') {
+			timeSystem = new GoClock.CappedFischer($('#cappedfischer_time').val(), $('#cappedfischer_timepermove').val(), $('#cappedfischer_maxtime').val());
+		} else if (sys == 'system_bronstein') {
+			timeSystem = new GoClock.Bronstein($('#bronstein_reserve').val(), $('#bronstein_timepermove').val());
+		} else if (sys == 'system_byoyomi') {
+			timeSystem = new GoClock.Byoyomi($('#byoyomi_time').val(), $('#byoyomi_byoyomitime').val(), Number($('#byoyomi_periods').val()));
+		} else if (sys == 'system_canadian') {
+			timeSystem = new GoClock.Canadian($('#canadian_time').val(), $('#canadian_byoyomitime').val(), Number($('#canadian_moves').val()), Number($('#canadian_movesdelta').val()));
+		} else {
+			console.error('Invalid time system: ' + sys);
+			return;
+		}
+		for (var i = 0; i < 8; i++)
+			$('#clock_handle' + i).toggleClass('hidden', i >= nplayers);
+		if (clock !== undefined)
+			clock.destroy();
+		clock = new GoClock.Clock(nplayers, timeSystem);
+		clock.setEventHandler(handleEvents);
+	}
+
+	applySettings();
+
+	function playSound(url) {
+		$('#sound').attr('src', 'silence.wav');
+		$('#sound').attr('src', url);
+	}
+
+	window.setInterval(function() {
+		for (var i = 0; i < clock.players; i++) {
+			$('#clock_display' + i).html(clock.displayTime(i));
+		}
+	}, 200);
+
+	function startClock(player) {
+		for (var i = 0; i < 8; i++) {
+			var index = (player + i) % clock.players;
+			if (!clock.hasLost(index)) {
+				clock.start(index);
+				break;
+			}
+		}
+	}
+
+	function pauseOrContinue() {
+		if (clock.status == 'running')
+			clock.pause();
+		else if (clock.status == 'paused')
+			clock.cont();
+	}
+
+	$('#clock_start').bind('click', function() { startClock(0); });
+	$('#clock_player0').bind('click', function() { startClock(1); });
+	$('#clock_player1').bind('click', function() { startClock(2); });
+	$('#clock_player2').bind('click', function() { startClock(3); });
+	$('#clock_player3').bind('click', function() { startClock(4); });
+	$('#clock_player4').bind('click', function() { startClock(5); });
+	$('#clock_player5').bind('click', function() { startClock(6); });
+	$('#clock_player6').bind('click', function() { startClock(7); });
+	$('#clock_player7').bind('click', function() { startClock(8); });
+	$('#clock_pause').bind('click', pauseOrContinue);
+	$('#clock_buzzer').bind('click', function() { playSound('buzzer.wav'); });
+
+	$('#apply_settings').bind('click', applySettings);
+});
+</script>
+</head>
+
+<body>
+<div id="settings" class="settings">
+	<div class="title">Einstellungen</div>
+	<div class="setting">
+		<label for="nplayers">Anzahl der Spieler:</label>
+		<select id="nplayers">
+			<option value="2" selected="selected">2</option>
+			<option value="3">3</option>
+			<option value="4">4</option>
+			<option value="5">5</option>
+			<option value="6">6</option>
+			<option value="7">7</option>
+			<option value="8">8</option>
+		</select>
+	</div>
+	<div class="setting">
+		<label for="system">Zeitsystem:</label>
+		<select id="system">
+			<option value="system_suddendeath" selected="selected">Sudden Death</option>
+			<option value="system_hourglass">Sanduhr</option>
+			<option value="system_fischer">Fischer</option>
+			<option value="system_cappedfischer">Fischer (begrenzt)</option>
+			<option value="system_bronstein">Bronstein</option>
+			<option value="system_byoyomi">Japanisches Byoyomi</option>
+			<option value="system_canadian">Kanadisches Byoyomi</option>
+<!--			<option value="system_manual">Manuelle Einstellung</option> -->
+		</select>
+	</div>
+	<div class="active hidden settings" id="system_suddendeath">
+		<div class="title">Sudden Death</div>
+		<div class="setting">
+			<label for="suddendeath_time">Bedenkzeit:</label>
+			<input id="suddendeath_time" class="time" type="text" value="10:00">
+		</div>
+	</div>
+	<div class="hidden settings" id="system_hourglass">
+		<div class="title">Sanduhr</div>
+		<div class="setting">
+			<label for="hourglass_time">Bedenkzeit:</label>
+			<input id="hourglass_time" class="time" type="text" value="10:00">
+		</div>
+	</div>
+	<div class="hidden settings" id="system_fischer">
+		<div class="title">Fischer</div>
+		<div class="setting">
+			<label for="fischer_time">Bedenkzeit:</label>
+			<input id="fischer_time" class="time" type="text" value="10:00">
+		</div>
+		<div class="setting">
+			<label for="fischer_timepermove">Bonuszeit pro Zug:</label>
+			<input id="fischer_timepermove" class="time" type="text" value="00:30">
+		</div>
+	</div>
+	<div class="hidden settings" id="system_cappedfischer">
+		<div class="title">Fischer (begrenzt)</div>
+		<div class="setting">
+			<label for="cappedfischer_time">Bedenkzeit:</label>
+			<input id="cappedfischer_time" class="time" type="text" value="10:00">
+		</div>
+		<div class="setting">
+			<label for="cappedfischer_maxtime">Maximale Bedenkzeit:</label>
+			<input id="cappedfischer_maxtime" class="time" type="text" value="10:00">
+		</div>
+		<div class="setting">
+			<label for="cappedfischer_timepermove">Bonuszeit pro Zug:</label>
+			<input id="cappedfischer_timepermove" class="time" type="text" value="00:30">
+		</div>
+	</div>
+	<div class="hidden settings" id="system_bronstein">
+		<div class="title">Bronstein</div>
+		<div class="setting">
+			<label for="bronstein_timepermove">Bedenkzeit pro Zug:</label>
+			<input id="bronstein_timepermove" class="time" type="text" value="00:30">
+		</div>
+		<div class="setting">
+			<label for="bronstein_reserve">Bonuszeit:</label>
+			<input id="bronstein_reserve" class="time" type="text" value="10:00">
+		</div>
+	</div>
+	<div class="hidden settings" id="system_byoyomi">
+		<div class="title">Japanisches Byoyomi</div>
+		<div class="setting">
+			<label for="byoyomi_time">Grundbedenkzeit:</label>
+			<input id="byoyomi_time" class="time" type="text" value="30:00">
+		</div>
+		<div class="setting">
+			<label for="byoyomi_periods">Byoyomi-Perioden:</label>
+			<input id="byoyomi_periods" class="number" type="text" value="5">
+		</div>
+		<div class="setting">
+			<label for="byoyomi_byoyomitime">Byoyomi-Zeit:</label>
+			<input id="byoyomi_byoyomitime" class="time" type="text" value="00:30">
+		</div>
+	</div>
+	<div class="hidden settings" id="system_canadian">
+		<div class="title">Kanadisches Byoyomi</div>
+		<div class="setting">
+			<label for="canadian_time">Grundbedenkzeit:</label>
+			<input id="canadian_time" class="time" type="text" value="30:00">
+		</div>
+		<div class="setting">
+			<label for="canadian_moves">Byoyomi-Züge:</label>
+			<input id="canadian_moves" class="number" type="text" value="10">
+			<span>+</span>
+			<input id="canadian_movesdelta" class="number" type="text" value="0">
+		</div>
+		<div class="setting">
+			<label for="canadian_byoyomitime">Byoyomi-Zeit:</label>
+			<input id="canadian_byoyomitime" class="time" type="text" value="05:00">
+		</div>
+	</div>
+	<div class="hidden settings" id="system_manual">
+		<div class="title">Manuelle Einstellung</div>
+		<div class="setting">
+			<label for="manual_phases">Phasen:</label>
+			<input id="manual_phases" class="text" type="text" value="">
+		</div>
+	</div>
+	<div class="buttonbar">
+		<input id="apply_settings" class="button" type="button" value="Einstellungen übernehmen">
+	</div>
+</div>
+
+<div id="clock" class="clock" style="float:left;">
+	<div><input id="clock_start" type="button" value="Start"></div>
+	<div id="clock_handle0"><input id="clock_player0" type="button" value="Spieler 0"> <span id="clock_display0"></span></div>
+	<div id="clock_handle1"><input id="clock_player1" type="button" value="Spieler 1"> <span id="clock_display1"></span></div>
+	<div id="clock_handle2"><input id="clock_player2" type="button" value="Spieler 2"> <span id="clock_display2"></span></div>
+	<div id="clock_handle3"><input id="clock_player3" type="button" value="Spieler 3"> <span id="clock_display3"></span></div>
+	<div id="clock_handle4"><input id="clock_player4" type="button" value="Spieler 4"> <span id="clock_display4"></span></div>
+	<div id="clock_handle5"><input id="clock_player5" type="button" value="Spieler 5"> <span id="clock_display5"></span></div>
+	<div id="clock_handle6"><input id="clock_player6" type="button" value="Spieler 6"> <span id="clock_display6"></span></div>
+	<div id="clock_handle7"><input id="clock_player7" type="button" value="Spieler 7"> <span id="clock_display7"></span></div>
+	<div><input id="clock_pause" type="button" value="Pause"></div>
+	<div><input id="clock_buzzer" type="button" value="Buzzer"></div>
+</div>
+
+<div class="clear_both"></div>
+
+<span id="soundcontainer"><embed id="sound" src="silence.wav" autostart="true" hidden="true" loop="false"></span>
+
+<div>
+<h2>TODO</h2>
+<ul>
+<li>Zeitsysteme erläutern.</li>
+<li>Alle unten beschriebenen Phasenarten implementieren.</li>
+<li><a href="http://senseis.xmp.net/?IngTiming">Ing Timing</a></li>
+<li><a href="http://senseis.xmp.net/?HayashiTiming">Hayashi Timing</a></li>
+</ul>
+
+<h2>Definition der Phasen</h2>
+<pre>
+partie	::= (phase)* ('*')?
+
+	Eine Partie besteht aus mehreren Phasen. Wenn hinter
+	der letzten Phase ein Sternchen steht, wird diese Phase
+	beliebig oft wiederholt.
+
+phase	::= time_1 '/' number_1 ('+' number_2)? ('-')?
+
+	In dieser Phase müssen number_1 Züge innerhalb der Zeit
+	time_1 gespielt werden. Falls number_2 angegeben ist und
+	die Phase wiederholt wird, steigt bei jeder Wiederholung
+	die Anzahl der Züge um number_2.
+
+	Wenn das '-' angegeben ist, verfällt die restliche Zeit.
+	Ansonsten wird die restliche Zeit in die nächste Phase
+	übernommen.
+
+phase	::= ('f:' | 'fischer:') time_1 '+' time_2
+
+	Jeder Spieler bekommt die Grundbedenkzeit time_1. Am Anfang
+	eines jeden Zuges bekommt er die Bonuszeit time_2 dazu.
+
+phase	::= ('b:' | 'bronstein:') time_1 '+' time_2
+
+	Jeder Spieler bekommt die Grundbedenkzeit time_1. Für jeden
+	Zug steht erstmal die Zeit time_2 zur Verfügung. Ist die
+	aufgebraucht, wird die restliche Zeit von time_1 abgezogen.
+
+phase	::= 'bonus:' time_1
+
+	Jeder Spieler erhält time_1 Extrazeit pro bisher gespieltem
+	Zug.
+
+phase	::= time_1;
+
+	Jeder Spieler bekommt die Bedenkzeit time_1. Wenn die
+	aufgebraucht ist, ist die Phase vorbei.
+
+phase	::= 'sync'
+
+	Wenn einer der Spieler einen Synchronisierungspunkt erreicht,
+	werden alle anderen Spieler hinterhergezogen und beenden damit
+	alle ihre früheren Phasen.
+
+time	::= ([0-9]+ ':')? [0-9]+ ':' [0-9]+
+
+	Eine Zeitdauer wird in der üblichen Form mit Doppelpunkten
+	angegeben, zum Beispiel 1:15:00 für eine Stunde und 15 Minuten
+	oder 0:30 für 30 Sekunden.
+
+number	::= [0-9]+
+
+	Eine Zahl ist (erwartungsgemäß) eine Ziffernfolge.
+
+</pre>
+
+<h2>Vergleich mit der DGT 2010</h2>
+
+<p>Die meisten Einstellungen der DGT 2010 lassen sich auf diese Uhr übertragen.
+Einige Einstellungen habe ich nicht komplett verstanden, da das Handbuch unvollständig ist
+und weder eine einführende Erklärung enthält noch die Details zu den einzelnen Einstellungen darstellt.</p>
+
+<p>Anmerkung: Unter "hiesige Syntax" steht das, was diese Uhr bald als Einstellung verstehen wird.
+Damit wird es möglich, die Bedenkzeit kurz und bündig zu formulieren und per Email oder über
+andere Kanäle auszutauschen.</p>
+
+<table border="1" cellspacing="0" cellpadding="2"><tbody>
+<tr><th>Option</th><th>Hiesige Syntax</th><th>Zeitmodus</th><th>Beschreibung</th></tr>
+<tr><td>01</td><td>5:00</td><td>Blitz</td><td>5 min</td></tr>
+<tr><td>02</td><td>25:00</td><td>Schnellschach</td><td>25 min</td></tr>
+<tr><td>03</td><td><i>mm:ss</i></td><td>Blitz / Schnellschach</td><td>manuelle Einstellung</td></tr>
+<tr><td>04</td><td class="error">120:00/40 sync 30:00<br>Anmerkung: die Zeitanzeige stimmt nicht überein.</td><td>Turnier + Guillotine</td><td>2 Std. + 30 min. / Rest</td></tr>
+<tr><td>05</td><td class="error"><i>mm:ss</i>/<i>n</i> sync <i>mm:ss</i><br>Anmerkung: die Zeitanzeige stimmt nicht überein.</td><td>Turnier + Guillotine</td><td>manuelle Einstellung</td></tr>
+<tr><td>06</td><td class="error">120:00/40 sync 60:00/20 sync 30:00</td><td>2 x Turnier + Guillotine</td><td>2 Std. + 1 Std. + 30 min. / Rest</td></tr>
+<tr><td>07</td><td class="error"><i>mm:ss</i>/<i>n</i> sync <i>mm:ss</i>/<i>n</i> sync <i>mm:ss</i></td><td>2 x Turnier + Guillotine</td><td>manuelle Einstellung</td></tr>
+<tr><td>08</td><td>120:00/40 60:00/20 *</td><td>Turnier + wiederholende 2. Periode</td><td>2 Std. + 1 Std. (Wdh.)</td></tr>
+<tr><td>09</td><td><i>mm:ss</i>/<i>n</i> <i>mm:ss</i>/<i>n</i> *</td><td>Turnier + wiederholende 2. Periode</td><td>manuelle Einstellung</td></tr>
+<tr><td>10</td><td class="error">25:00/40 5:00+0:10</td><td>Turnier + &quot;Fischer&quot;-Periode</td><td>25 min + (5 min + 10 Sek./Zug)</td></tr>
+<tr><td>11</td><td class="error">120:00/40 15:00+0:30</td><td>Turnier + &quot;Fischer&quot;-Periode</td><td>2 Std. + (15 min + 30 Sek./Zug) </td></tr>
+<tr><td>12</td><td><i>mm:ss</i>/<i>n</i> <i>mm:ss</i>+<i>mm:ss</i></td><td>Turnier + &quot;Fischer&quot;-Periode</td><td>manuelle Einstellung</td></tr>
+<tr><td>13</td><td>120:00/40 60:00/20 15:00+0:30</td><td>2 x Turnier + &quot;Fischer&quot;-Periode</td><td>2 Std. + 1 Std. + (15 min + 30 Sek./Zug)</td></tr>
+<tr><td>14</td><td><i>mm:ss</i>/<i>n</i> <i>mm:ss</i>/<i>n</i> <i>mm:ss</i>+<i>mm:ss</i></td><td>2 x Turnier + &quot;Fischer&quot;-Periode</td><td>manuelle Einstellung</td></tr>
+<tr><td>15</td><td>3:00+0:02</td><td>Bonus (&quot;Fischer&quot;) Blitz</td><td>3 min + 2 Sek./Zug</td></tr>
+<tr><td>16</td><td>25:00+0:10</td><td>Bonus (&quot;Fischer&quot;) Schnellschach</td><td>25 min + 10 Sek./Zug</td></tr>
+<tr><td>17</td><td>90:00+0:30</td><td>Bonus (&quot;Fischer&quot;) Langsam</td><td>90 min + 30 Sek./Zug</td></tr>
+<tr><td>18</td><td><i>mm:ss</i>+<i>mm:ss</i></td><td>Bonus (&quot;Fischer&quot;)</td><td>manuelle Einstellung</td></tr>
+<tr><td>19</td><td>90:00/40 bonus:0:30 15:00+0:30</td><td>Bonus Turnier</td><td>90 min + 15 min (alle Z&uuml;ge + 30 sek./Zug)</td></tr>
+<tr><td>20</td><td>100:00/40 bonus:0:30 30:00+0:30</td><td>Bonus Turnier</td><td>100 min + 30 min (alle Z&uuml;ge + 30 sek./Zug)</td></tr>
+<tr><td>21</td><td><i>mm:ss</i>/<i>n</i> <i>mm:ss</i>/<i>n</i> <i>mm:ss</i>/<i>n</i> <i>mm:ss</i>/<i>n</i> </td><td>Bonus Turnier (bis zu 4 Perioden)</td><td>manuelle Einstellung (mit oder ohne Zugz&auml;hler)</td></tr>
+<tr><td>22</td><td>bronstein:05:00+0:03</td><td>&quot;Bronstein&quot;-Modus</td><td>5 min + 3 sek./Zug (frei)</td></tr>
+<tr><td>23</td><td>bronstein:25:00+0:10</td><td>&quot;Bronstein&quot;-Modus</td><td>25 min + 10 sek./Zug (frei)</td></tr>
+<tr><td>24</td><td>bronstein:115:00+0:05</td><td>&quot;Bronstein&quot;-Modus</td><td>1 Std. 55 min + 5 sek./Zug (frei)</td></tr>
+<tr><td>25</td><td>bronstein:<i>mm:ss</i>+<i>mm:ss</i></td><td>&quot;Bronstein&quot;-Modus</td><td>manuelle Einstellung</td></tr>
+<tr><td>26</td><td>60:00 0:20/1 *</td><td>Go mit byo-yomi</td><td>1 Std. + 1x20 sek. byo-yomi</td></tr>
+<tr><td>27</td><td>120:00 0:30/1 *</td><td>Go mit byo-yomi</td><td>2 Std. + 1x30 sek. byo-yomi</td></tr>
+<tr><td>28</td><td><i>mm:ss</i> <i>mm:ss</i>/1 *</td><td>Go mit byo-yomi</td><td>manuelle Einstellung</td></tr>
+<tr><td>29</td><td>60:00 5:00/10 *</td><td>kanadisches byo-yomi</td><td>1 Std. + 5 min Verl&auml;ngerung</td></tr>
+<tr><td>30</td><td><i>mm:ss</i> <i>mm:ss</i>/<i>n</i> *</td><td>kanadisches byo-yomi</td><td>manuelle Einstellung</td></tr>
+<tr><td>31</td><td>hourglass:1:00</td><td>Stundenglas</td><td>1 min</td></tr>
+<tr><td>32</td><td>hourglass:1:00</td><td>Stundenglas</td><td>manuelle Einstellung</td></tr>
+<tr><td>33</td><td>gong:0:10</td><td>Gong</td><td>10 sek.</td></tr>
+<tr><td>34</td><td>gong:<i>mm:ss</i></td><td>Gong</td><td>manuelle Einstellung</td></tr></tbody></table>
+
+</div>
+</body>
+</html>
+
