@@ -1,5 +1,4 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
-	"http://www.w3.org/TR/html4/strict.dtd">
+<!DOCTYPE html>
 <html>
 <head>
 <meta http-equiv="Content-type" content="text/html; charset=UTF-8">
@@ -34,7 +33,7 @@ p, label, input, div, h2, td, th, li {
 <script type="text/javascript">
 
 $(document).ready(function() {
-	var timeSystem = new GoClock.Canadian("25:00", "05:00", 10);
+	var timeSystem = new GoClock.Canadian("25:00", "05:00", 10, 0);
 	var clock = new GoClock.Clock(2, timeSystem);
 
 	window.setInterval(function() {
